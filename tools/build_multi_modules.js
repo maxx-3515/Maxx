@@ -1,0 +1,159 @@
+import fs from "fs";
+import path from "path";
+import esbuild from "esbuild";
+
+/* ===============================
+   CONSTANTS
+================================ */
+const MODULE_ROOT = "./src/modules";
+const DIST_DIR = "./dist";
+const MATCH_IMPORT = "./src/helper/match.js";
+const SIEM_IMPORT = "./src/modules/soc/siem/helper/siem_frames.js";
+
+/* ===============================
+   CLI: Hỗ trợ cả dấu cách hoặc dấu phẩy
+================================ */
+// Lấy tất cả tham số từ index 2 trở đi để hỗ trợ: node tool.js mod1 mod2
+const args = process.argv.slice(2);
+let targetModules = [];
+
+if (args.length === 0 || args[0] === "all") {
+    console.log("🔍 Scanning all modules...");
+    targetModules = ["soc/ticket/close_ticket", "soc/siem/hex_decoder"]; 
+} else {
+    // Hỗ trợ cả "mod1,mod2" hoặc "mod1" "mod2"
+    targetModules = args.join(',').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/* ===============================
+   UTILS: Đảm bảo luôn trả về "./path/to/file"
+================================ */
+const posix = (p) => {
+    let rel = path.relative(process.cwd(), p).replace(/\\/g, "/");
+    return rel.startsWith(".") ? rel : "./" + rel;
+};
+
+/* ===============================
+   GENERATE MULTI-HARNESS
+================================ */
+let harnessImports = `
+import { isMatch } from "${posix(MATCH_IMPORT)}";
+import * as siem from "${posix(SIEM_IMPORT)}";
+`;
+
+let moduleExecutionLogic = "";
+let combinedNames = [];
+
+targetModules.forEach((modPath, index) => {
+    const entryFile = path.join(MODULE_ROOT, modPath, "index.js");
+    const configFile = path.join(MODULE_ROOT, modPath, "config.js");
+
+    if (!fs.existsSync(entryFile)) {
+        console.warn(`⚠️  Bỏ qua: Không tìm thấy entry cho ${modPath}`);
+        return;
+    }
+
+    const entryAlias = `module_entry_${index}`;
+    const configAlias = `module_config_${index}`;
+
+    harnessImports += `
+import ${entryAlias} from "${posix(entryFile)}";
+import ${configAlias} from "${posix(configFile)}";
+`;
+
+    moduleExecutionLogic += `
+    // --- Execution for: ${modPath} ---
+    (function() {
+        const config = ${configAlias};
+        const run = ${entryAlias};
+        if (typeof run !== "function") return;
+
+        const isIframe = window.self !== window.top;
+        
+        let url = location.href;
+        try { if (isIframe) url = window.top.location.href; } catch(e) {}
+
+        let currentFrameId = "TOP_WINDOW";
+        if (isIframe) {
+            try { currentFrameId = siem.getSelfFrameId() || window.name || "UNKNOWN"; } 
+            catch(e) { currentFrameId = window.name || "CROSS_ORIGIN"; }
+        }
+
+        if (config?.enabled === false) return;
+        
+        // 1. Cấm chạy trong iframe nếu module không hỗ trợ iframe
+        if (config?.iframe === false && isIframe) return;
+        
+        if (config?.match && !isMatch(url, config.match)) return;
+        if (config?.exclude && isMatch(url, config.exclude)) return;
+        
+        // 2. CHỖ SỬA QUAN TRỌNG: 
+        // Bắt buộc kiểm tra Frame ID. Nếu config có khai báo 'frames' cụ thể, 
+        // nó CHỈ ĐƯỢC CHẠY khi currentFrameId nằm trong danh sách đó.
+        if (Array.isArray(config?.frames) && config.frames.length > 0) {
+            if (!config.frames.includes(currentFrameId)) return;
+        }
+
+        console.log(\`[MAXX MULTI] ✅ Khởi chạy: [\${config.name || "${modPath}"}] tại [\${currentFrameId}]\`);
+        
+        try {
+            run({
+                url, isIframe, env: "dev",
+                siem: {
+                    getSelfFrameId: siem.getSelfFrameId,
+                    isSelfFrame: siem.isSelfFrame,
+                    isTopWindow: siem.isTopWindow,
+                    onFrameVisibleChange: siem.onFrameVisibleChange,
+                    getVisibleFrames: siem.getVisibleFrames,
+                    scope: siem.scope,
+                },
+            });
+        } catch (e) {
+            console.error(\`[MAXX] Module ${modPath} error:\`, e);
+        }
+    })();
+    `;
+    combinedNames.push(modPath.split('/').pop());
+});
+
+const finalHarness = `${harnessImports}\nfunction runAllDev() {\n${moduleExecutionLogic}\n}\nrunAllDev();`;
+
+/* ===============================
+   BUILD PROCESS
+================================ */
+const meta = `// ==UserScript==
+// @name         MAXX [MULTI-DEV]
+// @namespace    maxx-dev
+// @version      0.0.1
+// @description  Build: ${combinedNames.join(", ")}
+// @run-at       document-end
+// @match        *://*/*
+// @grant        none
+// ==/UserScript==
+`;
+
+esbuild.build({
+    stdin: {
+        contents: finalHarness,
+        resolveDir: process.cwd(),
+        sourcefile: "maxx-multi-build.js",
+        loader: "js",
+    },
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    charset: "utf8",
+    define: { __MAXX_DEV__: "true" },
+    loader: { ".css": "text" },
+}).then(result => {
+    if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
+    const outFile = path.join(DIST_DIR, "maxx.bundle.user.js");
+    fs.writeFileSync(outFile, meta + result.outputFiles[0].text);
+    console.log(`\n🎯 Build SUCCESS! Gộp ${combinedNames.length} modules.`);
+    console.log(`📦 Danh sách: ${combinedNames.join(", ")}`);
+    console.log(`📄 Output: ${outFile}`);
+}).catch((err) => {
+    console.error("❌ Build failed:", err);
+    process.exit(1);
+});
