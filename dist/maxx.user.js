@@ -8,8 +8,8 @@
 // @match        *://*/*
 // @grant        none
 // @charset      utf-8
-// @updateURL    https://raw.githubusercontent.com/z-3515/Maxx/main/dist/maxx.user.js
-// @downloadURL  https://raw.githubusercontent.com/z-3515/Maxx/main/dist/maxx.user.js
+// @updateURL    https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist/maxx.user.js
+// @downloadURL  https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist/maxx.user.js
 // ==/UserScript==
 
 // module: selected-search module | c2VsZWN0ZWQtc2VhcmNoIG1vZHVsZQ==
@@ -4448,7 +4448,7 @@ Tổng ticket lọc: ${tickets.length}`);
     const STORAGE_KEY2 = "MX_AQL_MAPPINGS";
     const DEFAULTS_KEY = "MX_AQL_GLOBAL_DEFAULTS";
     const S = config_default10.selector;
-    const defaultGlobalFields = `select DATEFORMAT(devicetime, 'MMM dd, yyyy, hh:mm:ss a') as "Device Time", sourceip as "Source IP", "dest_ip" as "Destination IP", LOGSOURCENAME(logsourceid) as "Log Source", QIDNAME(qid) as "Event Name"`;
+    const defaultGlobalFields = `DATEFORMAT(devicetime, 'MMM dd, yyyy, hh:mm:ss a') as "Device Time", sourceip as "Source IP", "destinationip" as "Destination IP", LOGSOURCENAME(logsourceid) as "Log Source", QIDNAME(qid) as "Event Name"`;
     function loadGlobalDefaults() {
       return localStorage.getItem(DEFAULTS_KEY) || defaultGlobalFields;
     }
