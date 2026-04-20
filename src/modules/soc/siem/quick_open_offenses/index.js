@@ -1,10 +1,14 @@
 import config from "./config.js";
+import aqlMappingModule from "./aql_mapping.js";
 
 /* =========================================================
-   MODULE: QUICK OPEN OFFENSES
+   MODULE: QUICK OPEN OFFENSES (TÍCH HỢP AQL MAPPING)
 ========================================================= */
 
 export default function quickOpenOffensesModule(ctx) {
+    // 1. Chạy module AQL Mapping để khởi tạo API
+    aqlMappingModule(ctx);
+
     if (!config.enabled) return;
 
     const DOMAIN_KEY = (location.hostname || "unknown").toLowerCase();
@@ -19,11 +23,11 @@ export default function quickOpenOffensesModule(ctx) {
             const raw = localStorage.getItem(STORAGE_MASKED_KEY);
             if (raw) {
                 const idArray = JSON.parse(raw);
-                const ids = idArray.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+                const ids = idArray.map((id) => parseInt(id, 10)).filter((id) => !isNaN(id));
                 if (ids.length > 0) return Math.max(...ids);
             }
         } catch (e) {}
-        return -1; 
+        return -1;
     }
 
     function getFilterData() {
@@ -34,33 +38,38 @@ export default function quickOpenOffensesModule(ctx) {
         return { noiseIds: [], importantIds: [] };
     }
 
-    // Hàm tính toán End Time dựa trên data chuẩn từ attribute (Tối ưu siêu nhanh)
+    // Lấy text của cả dòng
+    function getRowSearchText(tr) {
+        const tds = tr.querySelectorAll("td");
+        if (!tds || tds.length === 0) return "";
+        return Array.from(tds)
+            .map((td) => td.textContent || "")
+            .join(" ")
+            .replace(/\s+/g, " ");
+    }
+
+    // Tính EndTime siêu nhanh
     function calculateEndTimeOptimized(startTimeAbs, rawEndTimeAbs) {
         const now = Date.now();
         const timeSinceLastEvent = now - rawEndTimeAbs;
 
-        // CASE 1: Nếu sự kiện cuối vừa xảy ra < 30s -> check đến hiện tại
-        if (timeSinceLastEvent < 30000) {
-            return now;
-        }
+        if (timeSinceLastEvent < 30000) return now;
 
         const startDate = new Date(startTimeAbs);
         const nowDate = new Date(now);
         const isNotToday = startDate.toDateString() !== nowDate.toDateString();
         const duration = rawEndTimeAbs - startTimeAbs;
 
-        // CASE 2: check event cũ (start date không phải hôm nay hoặc kéo dài > 1 ngày)
         if (isNotToday || duration > 86400000) {
-            // Check đến 23:59:59 của ngày start date
             const endOfDay = new Date(startDate);
             endOfDay.setHours(23, 59, 59, 999);
             return endOfDay.getTime();
         }
 
-        // CASE 3: Bình thường -> Lấy thời gian chuẩn của SIEM + 1 phút buffer an toàn
         return rawEndTimeAbs + 60000;
     }
 
+    // URL Fallback truyền thống
     function buildArielUrl(offenseId, startTimeAbs, endTimeAbs) {
         const innerUrl = `do/ariel/arielSearch?appName=EventViewer&pageId=EventList&dispatch=performSearch&values['searchoffense']=on&newSearch=true&values['timeRangeType']=absolute&values['sortBy']=StartTimeKey&values['offenseId']=EQ ${offenseId}&values['startTimeAbs']=${startTimeAbs}&values['endTimeAbs']=${endTimeAbs}`;
         return `qradar/jsp/ArielSearchWrapper.jsp?url=${encodeURIComponent(innerUrl)}`;
@@ -74,37 +83,35 @@ export default function quickOpenOffensesModule(ctx) {
 
         let tempList = [];
 
-        doc.querySelectorAll(S.rows).forEach(tr => {
+        doc.querySelectorAll(S.rows).forEach((tr) => {
             const cellId = tr.querySelector(S.cell_offenseId);
             if (!cellId) return;
 
             const oId = parseInt(cellId.textContent.trim(), 10).toString();
             if (isNaN(oId)) return;
 
-            // Bỏ qua nếu ID <= Max Masked ID hoặc là noise
             if (maxMaskedId > -1 && oId <= maxMaskedId) return;
             if (noiseIds.includes(oId)) return;
 
-            // LẤY THỜI GIAN TRỰC TIẾP TỪ ATTRIBUTE
             const startAttr = tr.getAttribute("starttimeabs");
             const endAttr = tr.getAttribute("endtimeabs");
-            
-            // Fallback an toàn nếu attribute bị rỗng
+
             let startTimeAbs = startAttr ? parseInt(startAttr, 10) : Date.now() - 86400000;
             let rawEndTimeAbs = endAttr ? parseInt(endAttr, 10) : Date.now();
 
             const finalEndTimeAbs = calculateEndTimeOptimized(startTimeAbs, rawEndTimeAbs);
+            const rowText = getRowSearchText(tr);
 
             tempList.push({
                 id: oId,
-                idNum: parseInt(oId, 10), 
+                idNum: parseInt(oId, 10),
                 startTime: startTimeAbs,
-                endTime: finalEndTimeAbs, 
-                isImportant: importantIds.includes(oId)
+                endTime: finalEndTimeAbs,
+                isImportant: importantIds.includes(oId),
+                rowText: rowText,
             });
         });
 
-        // Ưu tiên phân trang: Sắp xếp toàn bộ mảng thuần túy theo ID từ nhỏ đến lớn
         tempList.sort((a, b) => a.idNum - b.idNum);
 
         offensesToOpen = tempList;
@@ -114,14 +121,13 @@ export default function quickOpenOffensesModule(ctx) {
     function updateButtonUI(doc) {
         let btn = doc.getElementById("MX_QUICK_OPEN_BTN");
         const toolbar = doc.querySelector(S.toolbarButtons);
-        
-        if (!toolbar) return; 
+
+        if (!toolbar) return;
 
         if (!btn) {
             btn = doc.createElement("div");
             btn.id = "MX_QUICK_OPEN_BTN";
             btn.className = "DA_COMPONENT DA_SPEEDBUTTON";
-            
             btn.style.display = "inline-flex";
             btn.style.alignItems = "center";
             btn.style.cursor = "pointer";
@@ -131,10 +137,10 @@ export default function quickOpenOffensesModule(ctx) {
             btn.style.borderRadius = "3px";
             btn.style.fontWeight = "bold";
             btn.style.userSelect = "none";
-            btn.style.order = "3"; 
+            btn.style.order = "3";
 
-            btn.onmouseover = () => btn.style.background = "rgba(0,0,0,0.08)";
-            btn.onmouseout = () => btn.style.background = "";
+            btn.onmouseover = () => (btn.style.background = "rgba(0,0,0,0.08)");
+            btn.onmouseout = () => (btn.style.background = "");
 
             btn.onclick = (e) => {
                 e.stopPropagation();
@@ -147,39 +153,42 @@ export default function quickOpenOffensesModule(ctx) {
                 let isTruncated = false;
                 let maxIdToMask = -1;
 
-                // Cắt lấy 10 Offense có ID nhỏ nhất (cũ nhất)
                 if (offensesToOpen.length > 10) {
                     itemsToOpen = offensesToOpen.slice(0, 10);
                     isTruncated = true;
-                    maxIdToMask = Math.max(...itemsToOpen.map(item => item.idNum));
+                    maxIdToMask = Math.max(...itemsToOpen.map((item) => item.idNum));
                 }
 
-                // Sắp xếp lại CỤC 10 PHẦN TỬ để ưu tiên Important mở trước
                 itemsToOpen.sort((a, b) => {
                     if (a.isImportant && !b.isImportant) return -1;
                     if (!a.isImportant && b.isImportant) return 1;
-                    return a.idNum - b.idNum; 
+                    return a.idNum - b.idNum;
                 });
 
-                itemsToOpen.forEach(item => {
-                    const url = buildArielUrl(item.id, item.startTime, item.endTime);
+                itemsToOpen.forEach((item) => {
+                    let url;
+                    const matchedRule = ctx.aqlAPI ? ctx.aqlAPI.findMatch(item.rowText) : null;
+
+                    if (matchedRule) {
+                        // SỬA LỖI Ở ĐÂY: Truyền toàn bộ matchedRule thay vì matchedRule.selectQuery
+                        url = ctx.aqlAPI.generateUrl(item.id, item.startTime, item.endTime, matchedRule);
+                    } else {
+                        url = buildArielUrl(item.id, item.startTime, item.endTime);
+                    }
+
                     window.open(url, "_blank");
                 });
 
-                // Mask Offense lớn nhất (nếu có giới hạn > 10)
                 if (isTruncated) {
                     const idToMaskStr = maxIdToMask.toString();
-
                     try {
                         const raw = localStorage.getItem(STORAGE_MASKED_KEY);
                         let maskedSet = raw ? new Set(JSON.parse(raw)) : new Set();
                         maskedSet.add(idToMaskStr);
-                        
                         localStorage.setItem(STORAGE_MASKED_KEY, JSON.stringify([...maskedSet]));
                     } catch (err) {
                         localStorage.setItem(STORAGE_MASKED_KEY, JSON.stringify([idToMaskStr]));
                     }
-
                     alert(`Đã mở 10 Offenses.\nOffense ID: ${idToMaskStr} đã được Mask làm mốc chuyển trang.`);
                 }
             };
@@ -190,7 +199,7 @@ export default function quickOpenOffensesModule(ctx) {
         }
 
         btn.innerHTML = `<span style="padding-left:2px;">Open Events (${offensesToOpen.length})</span>`;
-        btn.style.color = offensesToOpen.length > 0 ? "#15803d" : "#555"; 
+        btn.style.color = offensesToOpen.length > 0 ? "#15803d" : "#555";
         btn.style.borderColor = offensesToOpen.length > 0 ? "#15803d" : "#888";
     }
 
@@ -207,10 +216,10 @@ export default function quickOpenOffensesModule(ctx) {
     }
 
     setInterval(() => {
-        getTargetDocs().forEach(doc => {
+        getTargetDocs().forEach((doc) => {
             const root = doc.querySelector(S.table);
             if (!root) return;
-            
+
             if (offensesToOpen) updateButtonUI(doc);
 
             if (doc._mxQOObservedRoot !== root) {
@@ -224,13 +233,18 @@ export default function quickOpenOffensesModule(ctx) {
                     if (doc._mxQOTimer) clearTimeout(doc._mxQOTimer);
                     doc._mxQOTimer = setTimeout(() => {
                         scanAndBuildList(doc);
-                    }, 250); 
+                    }, 250);
                 });
-                
-                doc._mxQOObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+
+                doc._mxQOObserver.observe(root, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ["class"],
+                });
 
                 // Tính năng mở nhanh bằng Alt + Click
-                root.addEventListener('click', (e) => {
+                root.addEventListener("click", (e) => {
                     if (!e.altKey) return;
 
                     const tr = e.target.closest(S.rows);
@@ -242,18 +256,27 @@ export default function quickOpenOffensesModule(ctx) {
                     const oId = parseInt(cellId.textContent.trim(), 10).toString();
                     if (isNaN(oId)) return;
 
-                    // Lấy thời gian từ Attribute
                     const startAttr = tr.getAttribute("starttimeabs");
                     const endAttr = tr.getAttribute("endtimeabs");
-                    
+
                     let startTimeAbs = startAttr ? parseInt(startAttr, 10) : Date.now() - 86400000;
                     let rawEndTimeAbs = endAttr ? parseInt(endAttr, 10) : Date.now();
 
                     const finalEndTimeAbs = calculateEndTimeOptimized(startTimeAbs, rawEndTimeAbs);
-                    
-                    const url = buildArielUrl(oId, startTimeAbs, finalEndTimeAbs);
+                    const rowText = getRowSearchText(tr);
+
+                    let url;
+                    const matchedRule = ctx.aqlAPI ? ctx.aqlAPI.findMatch(rowText) : null;
+
+                    if (matchedRule) {
+                        // SỬA LỖI Ở ĐÂY: Truyền toàn bộ matchedRule
+                        url = ctx.aqlAPI.generateUrl(oId, startTimeAbs, finalEndTimeAbs, matchedRule);
+                    } else {
+                        url = buildArielUrl(oId, startTimeAbs, finalEndTimeAbs);
+                    }
+
                     window.open(url, "_blank");
-                    
+
                     e.preventDefault();
                     e.stopPropagation();
                 });
