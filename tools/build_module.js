@@ -7,6 +7,7 @@ import esbuild from "esbuild";
 ================================ */
 const MODULE_ROOT = "./src/modules";
 const DIST_DIR = "./dist";
+const HOST_URL = "https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist/";
 
 /* ===============================
    CLI
@@ -14,8 +15,8 @@ const DIST_DIR = "./dist";
 const modulePath = process.argv[2];
 
 if (!modulePath) {
-	console.error("❌ Usage: node tools/build_module.js <module-path>");
-	process.exit(1);
+    console.error("❌ Usage: node tools/build_module.js <module-path>");
+    process.exit(1);
 }
 
 /* ===============================
@@ -26,34 +27,42 @@ const entryFile = path.join(moduleDir, "index.js");
 const configFile = path.join(moduleDir, "config.js");
 
 if (!fs.existsSync(entryFile) || !fs.existsSync(configFile)) {
-	console.error("❌ Không tìm thấy module:", modulePath);
-	process.exit(1);
+    console.error("❌ Không tìm thấy module:", modulePath);
+    process.exit(1);
 }
 
 /* ===============================
    UTILS
 ================================ */
 function encodeBase64(str) {
-	return Buffer.from(str, "utf8").toString("base64");
+    return Buffer.from(str, "utf8").toString("base64");
 }
 
 function extractModuleName(content) {
-	const match = content.match(/name\s*:\s*["'`](.+?)["'`]/);
-	return match ? match[1].trim() : modulePath;
+    const match = content.match(/name\s*:\s*["'`](.+?)["'`]/);
+    return match ? match[1].trim() : modulePath;
 }
 
 function posix(p) {
-	let rel = path.relative(process.cwd(), p).replace(/\\/g, "/");
-	if (!rel.startsWith(".")) rel = "./" + rel;
-	return rel;
+    let rel = path.relative(process.cwd(), p).replace(/\\/g, "/");
+    if (!rel.startsWith(".")) rel = "./" + rel;
+    return rel;
 }
 
 /* ===============================
-   READ CONFIG
+   READ CONFIG & SETUP NAMES
 ================================ */
 const configContent = fs.readFileSync(configFile, "utf8");
 const moduleName = extractModuleName(configContent);
 const moduleId = encodeBase64(moduleName);
+
+// Tạo tên file output an toàn (ví dụ: maxx.module.soc_siem_hex_decoder.user.js)
+const safePathName = modulePath.replace(/[\\/]/g, "_");
+const outputFileName = `maxx.module.${safePathName}.user.js`;
+
+// Xử lý URL (Đảm bảo không bị dính 2 dấu gạch chéo // ở giữa)
+const cleanHostUrl = HOST_URL.replace(/\/$/, "");
+const scriptDownloadUrl = `${cleanHostUrl}/${outputFileName}`;
 
 /* ===============================
    USERSCRIPT META (DEV)
@@ -68,6 +77,8 @@ const meta = `// ==UserScript==
 // @match        *://*/*
 // @grant        none
 // @charset      utf-8
+// @updateURL    ${scriptDownloadUrl}
+// @downloadURL  ${scriptDownloadUrl}
 // ==/UserScript==
 
 // module: ${moduleName} | ${moduleId}
@@ -175,38 +186,41 @@ if (document.readyState !== "loading") {
    BUILD
 ================================ */
 esbuild
-	.build({
-		stdin: {
-			contents: devHarness,
-			resolveDir: process.cwd(),
-			sourcefile: "maxx-dev-harness.js",
-			loader: "js",
-		},
-		bundle: true,
-		write: false,
-		format: "iife",
-		platform: "browser",
-		minify: false,
-		keepNames: true,
-		charset: "utf8",
-		define: {
-			__MAXX_DEV__: "true",
-		},
-		loader: {
-			".css": "text",
-		},
-	})
-	.then((result) => {
-		const code = result.outputFiles[0].text;
-		const outFile = path.join(DIST_DIR, `maxx.module.${modulePath.replace(/[\\/]/g, "_")}.user.js`);
+    .build({
+        stdin: {
+            contents: devHarness,
+            resolveDir: process.cwd(),
+            sourcefile: "maxx-dev-harness.js",
+            loader: "js",
+        },
+        bundle: true,
+        write: false,
+        format: "iife",
+        platform: "browser",
+        minify: false,
+        keepNames: true,
+        charset: "utf8",
+        define: {
+            __MAXX_DEV__: "true",
+        },
+        loader: {
+            ".css": "text",
+        },
+    })
+    .then((result) => {
+        if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
 
-		fs.writeFileSync(outFile, `${meta}\n${code}\n`, "utf8");
+        const code = result.outputFiles[0].text;
+        const outFile = path.join(DIST_DIR, outputFileName);
 
-		console.log("🎯 Build module DEV thành công");
-		console.log("📦 Module:", modulePath);
-		console.log("📄 Output:", outFile);
-	})
-	.catch((err) => {
-		console.error("❌ Build module lỗi:", err);
-		process.exit(1);
-	});
+        fs.writeFileSync(outFile, `${meta}\n${code}\n`, "utf8");
+
+        console.log("🎯 Build module DEV thành công");
+        console.log(`📦 Tên Userscript: MAXX [DEV] ${moduleName}`);
+        console.log(`📄 Output: ${outFile}`);
+        console.log(`🔗 Cập nhật/Cài đặt tại: ${scriptDownloadUrl}`);
+    })
+    .catch((err) => {
+        console.error("❌ Build module lỗi:", err);
+        process.exit(1);
+    });
