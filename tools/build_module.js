@@ -32,7 +32,7 @@ if (!fs.existsSync(entryFile) || !fs.existsSync(configFile)) {
 }
 
 /* ===============================
-   UTILS
+   UTILS & AUTO VERSIONING
 ================================ */
 function encodeBase64(str) {
     return Buffer.from(str, "utf8").toString("base64");
@@ -49,6 +49,16 @@ function posix(p) {
     return rel;
 }
 
+// Hàm tự động sinh Version theo thời gian thực (Đảm bảo luôn tăng)
+function generateAutoVersion() {
+    const d = new Date();
+    const pad = (n) => n.toString().padStart(2, "0");
+    // Format: YYYY.MM.DD.HHMMSS (VD: 2026.4.20.143000)
+    return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}.${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+const buildVersion = generateAutoVersion(); // <--- GỌI HÀM LẤY VERSION TẠI ĐÂY
+
 /* ===============================
    READ CONFIG & SETUP NAMES
 ================================ */
@@ -56,21 +66,20 @@ const configContent = fs.readFileSync(configFile, "utf8");
 const moduleName = extractModuleName(configContent);
 const moduleId = encodeBase64(moduleName);
 
-// Tạo tên file output an toàn (ví dụ: maxx.module.soc_siem_hex_decoder.user.js)
 const safePathName = modulePath.replace(/[\\/]/g, "_");
 const outputFileName = `maxx.module.${safePathName}.user.js`;
 
-// Xử lý URL (Đảm bảo không bị dính 2 dấu gạch chéo // ở giữa)
 const cleanHostUrl = HOST_URL.replace(/\/$/, "");
 const scriptDownloadUrl = `${cleanHostUrl}/${outputFileName}`;
 
 /* ===============================
    USERSCRIPT META (DEV)
 ================================ */
+// Chèn biến ${buildVersion} vào mục @version
 const meta = `// ==UserScript==
 // @name         MAXX [DEV] ${moduleName}
 // @namespace    maxx-dev
-// @version      0.0.0-dev
+// @version      ${buildVersion} 
 // @description  Dev build for module: ${moduleName}
 // @author       Maxx
 // @run-at       document-end
@@ -102,65 +111,31 @@ import { isMatch } from "${MATCH_IMPORT}";
 import * as siem from "${SIEM_IMPORT}";
 
 function runDev() {
-    if (typeof run !== "function") {
-        console.error("[MAXX DEV] Không tìm thấy export default function từ module!");
-        return;
-    }
+    if (typeof run !== "function") return;
 
     const isIframe = window.self !== window.top;
     
-    // 1. AN TOÀN URL: Bọc try/catch chống lỗi Cross-Origin
     let url = location.href;
-    try {
-        if (isIframe) url = window.top.location.href;
-    } catch (e) {
-        // Rơi vào đây nếu iframe là của tên miền khác (X-Force, v.v..)
-    }
+    try { if (isIframe) url = window.top.location.href; } catch (e) {}
 
-    // 2. AN TOÀN FRAME ID: Fallback sang window.name nếu không lấy được ID
     let currentFrameId = "TOP_WINDOW";
     if (isIframe) {
-        try {
-            currentFrameId = siem.getSelfFrameId() || window.name || "UNKNOWN_FRAME";
-        } catch (e) {
-            currentFrameId = window.name || "CROSS_ORIGIN_FRAME";
-        }
+        try { currentFrameId = siem.getSelfFrameId() || window.name || "UNKNOWN_FRAME"; } 
+        catch (e) { currentFrameId = window.name || "CROSS_ORIGIN_FRAME"; }
     }
 
-    // --- BẮT ĐẦU LOG ---
-    console.log(\`[MAXX DEV] ⏳ Đang kiểm tra module [\${config.name || "Unknown"}] tại frame: [\${currentFrameId}]\`);
+    if (config?.match && !isMatch(url, config.match)) return;
+    if (config?.exclude && isMatch(url, config.exclude)) return;
 
-    if (config?.match && !isMatch(url, config.match)) {
-        console.log(\`[MAXX DEV] ❌ Bỏ qua [\${currentFrameId}]: URL không khớp.\`);
-        return;
-    }
-    
-    if (config?.exclude && isMatch(url, config.exclude)) {
-        console.log(\`[MAXX DEV] ❌ Bỏ qua [\${currentFrameId}]: URL bị exclude.\`);
-        return;
-    }
-
-    // BÍT KẼ HỞ: Kiểm tra frame cho MỌI môi trường (kể cả Top Window)
     if (Array.isArray(config?.frames)) {
-        if (!config.frames.includes(currentFrameId)) {
-            console.log(\`[MAXX DEV] ❌ Bỏ qua [\${currentFrameId}]: Chỉ được phép chạy ở [\${config.frames.join(', ')}]\`);
-            return;
-        }
+        if (!config.frames.includes(currentFrameId)) return;
     } else {
-        // Fallback cho các module cũ chưa có config.frames
-        if (config?.iframe === false && isIframe) {
-            console.log(\`[MAXX DEV] ❌ Bỏ qua [\${currentFrameId}]: Không cho phép chạy trong iframe.\`);
-            return;
-        }
+        if (config?.iframe === false && isIframe) return;
     }
-
-    console.log(\`[MAXX DEV] ✅ THỎA MÃN! Khởi chạy module [\${config.name || "Unknown"}] tại frame: [\${currentFrameId}]\`);
 
     try {
         run({
-            url,
-            isIframe,
-            env: "dev",
+            url, isIframe, env: "dev",
             siem: {
                 getSelfFrameId: siem.getSelfFrameId,
                 isSelfFrame: siem.isSelfFrame,
@@ -171,15 +146,12 @@ function runDev() {
             },
         });
     } catch (err) {
-        console.error(\`[MAXX DEV] 💥 Module [\${config.name}] CRASH trong quá trình chạy:\`, err);
+        console.error(\`[MAXX DEV] CRASH:\`, err);
     }
 }
 
-if (document.readyState !== "loading") {
-    runDev();
-} else {
-    window.addEventListener("DOMContentLoaded", runDev, { once: true });
-}
+if (document.readyState !== "loading") runDev();
+else window.addEventListener("DOMContentLoaded", runDev, { once: true });
 `;
 
 /* ===============================
@@ -200,12 +172,8 @@ esbuild
         minify: false,
         keepNames: true,
         charset: "utf8",
-        define: {
-            __MAXX_DEV__: "true",
-        },
-        loader: {
-            ".css": "text",
-        },
+        define: { __MAXX_DEV__: "true" },
+        loader: { ".css": "text" },
     })
     .then((result) => {
         if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
@@ -217,6 +185,7 @@ esbuild
 
         console.log("🎯 Build module DEV thành công");
         console.log(`📦 Tên Userscript: MAXX [DEV] ${moduleName}`);
+        console.log(`📌 Phiên bản: ${buildVersion}`); // <--- In ra console để theo dõi
         console.log(`📄 Output: ${outFile}`);
         console.log(`🔗 Cập nhật/Cài đặt tại: ${scriptDownloadUrl}`);
     })
