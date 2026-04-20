@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         MAXX [offense_filter + offense_masker + quick_open_offenses]
 // @namespace    maxx-dev
-// @version      0.0.1
+// @version      2026.4.20.055617
 // @description  Build bao gồm: offense_filter, offense_masker, quick_open_offenses
 // @run-at       document-end
 // @match        *://*/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist//maxx.offense_filter_offense_masker_quick_open_offenses.user.js
-// @downloadURL  https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist//maxx.offense_filter_offense_masker_quick_open_offenses.user.js
+// @updateURL    https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist/maxx.offense_filter_offense_masker_quick_open_offenses.user.js
+// @downloadURL  https://raw.githubusercontent.com/maxx-3515/Maxx/main/dist/maxx.offense_filter_offense_masker_quick_open_offenses.user.js
 // ==/UserScript==
 (() => {
   // src/helper/match.js

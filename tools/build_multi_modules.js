@@ -30,12 +30,22 @@ if (args.length === 0 || args[0] === "all") {
 }
 
 /* ===============================
-   UTILS
+   UTILS & AUTO VERSIONING
 ================================ */
 const posix = (p) => {
     let rel = path.relative(process.cwd(), p).replace(/\\/g, "/");
     return rel.startsWith(".") ? rel : "./" + rel;
 };
+
+// Hàm tự động sinh Version theo thời gian thực
+function generateAutoVersion() {
+    const d = new Date();
+    const pad = (n) => n.toString().padStart(2, "0");
+    // Format: YYYY.MM.DD.HHMMSS
+    return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}.${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+const buildVersion = generateAutoVersion(); // <--- GỌI HÀM LẤY VERSION TẠI ĐÂY
 
 /* ===============================
    GENERATE MULTI-HARNESS
@@ -128,14 +138,15 @@ const finalHarness = `${harnessImports}\nfunction runAllDev() {\n${moduleExecuti
 const safeCombinedName = combinedNames.length > 0 ? combinedNames.join("_") : "bundle";
 const outputFileName = `maxx.${safeCombinedName}.user.js`;
 
-// 2. Tạo URL download/update dựa trên HOST_URL
-const scriptDownloadUrl = `${HOST_URL}/${outputFileName}`;
+// 2. Tạo URL download/update dựa trên HOST_URL (Fix lỗi 2 dấu gạch chéo //)
+const cleanHostUrl = HOST_URL.replace(/\/$/, "");
+const scriptDownloadUrl = `${cleanHostUrl}/${outputFileName}`;
 
-// 3. Khởi tạo Metadata động
+// 3. Khởi tạo Metadata động (Đã thay bằng biến buildVersion)
 const meta = `// ==UserScript==
 // @name         MAXX [${combinedNames.join(" + ")}]
 // @namespace    maxx-dev
-// @version      0.0.1
+// @version      ${buildVersion}
 // @description  Build bao gồm: ${combinedNames.join(", ")}
 // @run-at       document-end
 // @match        *://*/*
@@ -170,6 +181,7 @@ esbuild
 
         console.log(`\n🎯 Build SUCCESS! Gộp ${combinedNames.length} modules.`);
         console.log(`📦 Tên Userscript: MAXX [${combinedNames.join(" + ")}]`);
+        console.log(`📌 Phiên bản: ${buildVersion}`); // <--- Hiện version ở console
         console.log(`📄 Output: ${outFile}`);
         console.log(`🔗 Cập nhật tại: ${scriptDownloadUrl}`);
     })
