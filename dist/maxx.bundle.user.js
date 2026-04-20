@@ -1073,7 +1073,7 @@
     const STORAGE_KEY = "MX_AQL_MAPPINGS";
     const DEFAULTS_KEY = "MX_AQL_GLOBAL_DEFAULTS";
     const S = config_default3.selector;
-    const defaultGlobalFields = `select DATEFORMAT(devicetime, 'MMM dd, yyyy, hh:mm:ss a') as "Device Time", sourceip as "Source IP", "dest_ip" as "Destination IP", LOGSOURCENAME(logsourceid) as "Log Source", QIDNAME(qid) as "Event Name"`;
+    const defaultGlobalFields = `DATEFORMAT(devicetime, 'MMM dd, yyyy, hh:mm:ss a') as "Device Time", sourceip as "Source IP", "destinationip" as "Destination IP", LOGSOURCENAME(logsourceid) as "Log Source", QIDNAME(qid) as "Event Name"`;
     function loadGlobalDefaults() {
       return localStorage.getItem(DEFAULTS_KEY) || defaultGlobalFields;
     }
