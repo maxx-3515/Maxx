@@ -1,19 +1,19 @@
 export default {
-	name: "offense-masker module",
-	// module-id: b2ZmZW5zZS1tYXNrZXIgbW9kdWxl
+    name: "offense-masker module",
+    // module-id: b2ZmZW5zZS1tYXNrZXIgbW9kdWxl
 
-	enabled: true,
+    enabled: true,
 
-	match: ["*://*.vnpt.vn/console/qradar/*"],
+    match: ["*://*.vnpt.vn/console/qradar/*"],
 
-	exclude: [],
+    exclude: [],
 
-	runAt: "document-end",
+    runAt: "document-end",
 
-	iframe: true,
+    iframe: true,
     frames: ["PAGE_SEM"],
 
-	once: true,
+    once: true,
 
-	priority: 10,
+    priority: 10,
 };
