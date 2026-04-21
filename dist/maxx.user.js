@@ -4694,13 +4694,9 @@ Tổng ticket lọc: ${tickets.length}`);
         `;
       doc.body.appendChild(modal);
       ["keydown", "keyup", "keypress"].forEach((eventType) => {
-        modal.addEventListener(
-          eventType,
-          (e) => {
-            e.stopPropagation();
-          },
-          true
-        );
+        modal.addEventListener(eventType, (e) => {
+          e.stopPropagation();
+        });
       });
       const viewEl = modal.querySelector("#mx-aql-view");
       const listEl = modal.querySelector("#mx-aql-list");

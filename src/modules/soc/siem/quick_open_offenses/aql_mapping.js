@@ -298,14 +298,10 @@ export default function aqlMappingModule(ctx) {
         doc.body.appendChild(modal);
 
         ["keydown", "keyup", "keypress"].forEach((eventType) => {
-            modal.addEventListener(
-                eventType,
-                (e) => {
-                    // Ngừng lan truyền sự kiện ra bên ngoài Modal
-                    e.stopPropagation();
-                },
-                true,
-            ); // Tham số 'true' (Capture phase) giúp bắt sự kiện sớm nhất có thể, chặn đứng QRadar 100%
+            modal.addEventListener(eventType, (e) => {
+                // Ngừng lan truyền sự kiện ra bên ngoài Modal
+                e.stopPropagation();
+            }); // Tham số 'true' (Capture phase) giúp bắt sự kiện sớm nhất có thể, chặn đứng QRadar 100%
         });
 
         const viewEl = modal.querySelector("#mx-aql-view");
