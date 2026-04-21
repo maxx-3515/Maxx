@@ -74,7 +74,8 @@ export default function aqlMappingModule(ctx) {
     function isRuleMatched(text, tokens) {
         if (!tokens || tokens.length === 0) return false;
         const parsedTokens = tokens.map(parseToken).filter((t) => t);
-        return parsedTokens.every((token) => {
+
+        return parsedTokens.some((token) => {
             if (token instanceof RegExp) {
                 token.lastIndex = 0;
                 return token.test(text);

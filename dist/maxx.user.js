@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.0
+// @version      1.1
 // @description  Maxx Script
 // @author       Maxx
 // @run-at       document-end
@@ -4434,7 +4434,7 @@ Tổng ticket lọc: ${tickets.length}`);
       cell_offenseId: 'td[propertyname="offenseId"]',
       cell_startTime: 'td[propertyname="startTime"]',
       cell_description: 'td[propertyname="offenseDescription"]',
-      cell_lastEventFlow: 'td[propertyname="lastEvent"]'
+      cell_lastEventFlow: 'td[propertyname="domain"]'
     },
     defaultRules: {
       noise: [],
@@ -4502,7 +4502,7 @@ Tổng ticket lọc: ${tickets.length}`);
     function isRuleMatched(text, tokens) {
       if (!tokens || tokens.length === 0) return false;
       const parsedTokens = tokens.map(parseToken).filter((t) => t);
-      return parsedTokens.every((token) => {
+      return parsedTokens.some((token) => {
         if (token instanceof RegExp) {
           token.lastIndex = 0;
           return token.test(text);
@@ -4912,9 +4912,11 @@ Tổng ticket lọc: ${tickets.length}`);
       return { noiseIds: [], importantIds: [] };
     }
     function getRowSearchText(tr) {
-      const tds = tr.querySelectorAll("td");
-      if (!tds || tds.length === 0) return "";
-      return Array.from(tds).map((td) => td.textContent || "").join(" ").replace(/\s+/g, " ");
+      const descCell = tr.querySelector(S.cell_description);
+      const domainCell = tr.querySelector(S.cell_domain);
+      const descText = descCell ? descCell.textContent || "" : "";
+      const domainText = domainCell ? domainCell.textContent || "" : "";
+      return `${domainText} ${descText}`.replace(/\s+/g, " ").trim();
     }
     function calculateEndTimeOptimized(startTimeAbs, rawEndTimeAbs) {
       const now = Date.now();

@@ -40,12 +40,16 @@ export default function quickOpenOffensesModule(ctx) {
 
     // Lấy text của cả dòng
     function getRowSearchText(tr) {
-        const tds = tr.querySelectorAll("td");
-        if (!tds || tds.length === 0) return "";
-        return Array.from(tds)
-            .map((td) => td.textContent || "")
-            .join(" ")
-            .replace(/\s+/g, " ");
+        // Tìm cell dựa trên selector đã cấu hình
+        const descCell = tr.querySelector(S.cell_description);
+        const domainCell = tr.querySelector(S.cell_domain);
+
+        // Trích xuất text, nếu không có phần tử thì trả về chuỗi rỗng
+        const descText = descCell ? descCell.textContent || "" : "";
+        const domainText = domainCell ? domainCell.textContent || "" : "";
+
+        // Nối text của 2 trường, chuẩn hóa khoảng trắng và trả về
+        return `${domainText} ${descText}`.replace(/\s+/g, " ").trim();
     }
 
     // Tính EndTime siêu nhanh
