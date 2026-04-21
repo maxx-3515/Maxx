@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.2
+// @version      1.3
 // @description  Maxx Script
 // @author       Maxx
 // @run-at       document-end
@@ -4693,6 +4693,15 @@ Tổng ticket lọc: ${tickets.length}`);
             </div>
         `;
       doc.body.appendChild(modal);
+      ["keydown", "keyup", "keypress"].forEach((eventType) => {
+        modal.addEventListener(
+          eventType,
+          (e) => {
+            e.stopPropagation();
+          },
+          true
+        );
+      });
       const viewEl = modal.querySelector("#mx-aql-view");
       const listEl = modal.querySelector("#mx-aql-list");
       const btnSave = modal.querySelector("#mx-aql-save");

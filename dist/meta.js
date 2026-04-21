@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.2
+// @version      1.3
 // @description  Maxx Script
 // @author       Maxx
 // @run-at       document-end

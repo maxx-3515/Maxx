@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MAXX [offense_filter + offense_masker + quick_open_offenses]
 // @namespace    maxx-dev
-// @version      2026.4.21.105931
+// @version      2026.4.21.111451
 // @description  Build bao gồm: offense_filter, offense_masker, quick_open_offenses
 // @run-at       document-end
 // @match        *://*/*
@@ -1320,6 +1320,15 @@
             </div>
         `;
       doc.body.appendChild(modal);
+      ["keydown", "keyup", "keypress"].forEach((eventType) => {
+        modal.addEventListener(
+          eventType,
+          (e) => {
+            e.stopPropagation();
+          },
+          true
+        );
+      });
       const viewEl = modal.querySelector("#mx-aql-view");
       const listEl = modal.querySelector("#mx-aql-list");
       const btnSave = modal.querySelector("#mx-aql-save");
