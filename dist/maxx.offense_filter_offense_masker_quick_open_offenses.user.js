@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MAXX [offense_filter + offense_masker + quick_open_offenses]
 // @namespace    maxx-dev
-// @version      2026.4.21.133033
+// @version      2026.4.28.032352
 // @description  Build bao gồm: offense_filter, offense_masker, quick_open_offenses
 // @run-at       document-end
 // @match        *://*/*
